@@ -2,13 +2,13 @@
 
 class WP_MXNHelper extends WP_PluginBase {
 	
-	private static $providers;
-	private $provider = null;
+	private static $supported_providers;
+	private $providers = null;
 	
 	function __construct () {
-		self::$providers = array (
+		self::$supported_providers = array (
 
-			// Provider Array components
+			// Supported Provider Array components
 			// 'description' => human friendly description of who the provider is
 			// 'has-script' => this provider requires a JS script to be included
 			// 'has-header' => this provider needs additional header code to be included
@@ -102,66 +102,78 @@ class WP_MXNHelper extends WP_PluginBase {
 		$this->hook ('wp_enqueue_scripts', 'enqueue_scripts');
 	}
 	
-	static public function get_providers () {
-		return apply_filters ('wp_mxn_helper_providers', self::$providers);
+	static public function get_supported_providers () {
+		return apply_filters ('wp_mxn_helper_providers', self::$supported_providers);
 	}
 
-	public function set_provider ($provider) {
-		if ($this->validate_provider ($provider)) {
-			$this->provider = $provider;
+	public function set_providers ($providers) {
+		if (!empty ($providers)) {
+			$this->providers = array ();
+			
+			foreach ($providers as $provider) {
+				if ($this->validate_provider ($provider)) {
+					$this->providers[] = $provider;
+				}
+			}
 		}
 	}
 	
 	public function register_callback ($provider, $callback) {
 		if ($this->validate_provider ($provider)) {
-			if (self::$providers[$provider]['has-callback']) {
-				self::$providers[$provider]['callback'] = $callback;
+			if (self::$supported_providers[$provider]['has-callback']) {
+				self::$supported_providers[$provider]['callback'] = $callback;
 			}
 		}
 	}
 
 	public function head_meta () {
-		if ($this->validate_provider ($this->provider)) {
-			$meta = $this->get_provider_header ($this->provider);
-			if (isset ($meta) && !empty ($meta)) {
-				echo $meta;
+		foreach ($this->providers as $provider) {
+			if ($this->validate_provider ($provider)) {
+				$meta = $this->get_provider_header ($provider);
+				if (isset ($meta) && !empty ($meta)) {
+					echo $meta . PHP_EOL;
+				}
 			}
-		}
+		}	// end-foreach
 	}
 	
 	public function head_init () {
-		if ($this->validate_provider ($this->provider)) {
-			$init = $this->get_provider_init ($this->provider);
-			if (isset ($init) && !empty ($init)) {
-				echo $init;
+		foreach ($this->providers as $provider) {
+			if ($this->validate_provider ($provider)) {
+				$init = $this->get_provider_init ($provider);
+				if (isset ($init) && !empty ($init)) {
+					echo $init;
+				}
 			}
-		}
+		}	// end-foreach
 	}
 	
 	public function enqueue_scripts () {
-		if ($this->validate_provider ($this->provider)) {
-			$core = $this->get_core_script ($this->provider);
-			$api = $this->get_provider_script ($this->provider);
-			
-			if (isset ($core) && !empty ($core) && isset ($api) && !empty ($api)) {
-				$style = $this->get_provider_style ($this->provider);
+		$deps = array ();
+		
+		foreach ($this->providers as $provider) {
+			$api = $this->get_provider_script ($provider);
+			if (isset ($api) && !empty ($api)) {
+				$style = $this->get_provider_style ($provider);
 				if (isset ($style) && !empty ($style)) {
 					wp_register_style ($style['handle'], $style['style']);
 					wp_enqueue_style ($style['handle']);
 				}
-				
+
 				wp_register_script ($api['handle'], $api['script']);
-				wp_register_script ($core['handle'], $core['script']);
-				
 				wp_enqueue_script ($api['handle']);
-				wp_enqueue_script ($core['handle']);
+				$deps[] = $api['handle'];
 			}
-		}
+		}	// end-foreach
+
+		$core = $this->get_core_script ();
+		wp_register_script ($core['handle'], $core['script'], $deps);
+		wp_enqueue_script ($core['handle']);
 	}
 	
 	public function get_provider_style ($provider) {
 		if ($this->validate_provider ($provider)) {
-			if (self::$providers[$provider]['has-style']) {
+			if (self::$supported_providers[$provider]['has-style']) {
 				$method = $provider . '_style';
 				if (method_exists ($this, $method)) {
 					$style = call_user_func (array ($this, $method), $provider);
@@ -174,7 +186,7 @@ class WP_MXNHelper extends WP_PluginBase {
 	
 	public function get_provider_script ($provider) {
 		if ($this->validate_provider ($provider)) {
-			if (self::$providers[$provider]['has-script']) {
+			if (self::$supported_providers[$provider]['has-script']) {
 				$method = $provider . '_script';
 				if (method_exists ($this, $method)) {
 					$script = call_user_func (array ($this, $method), $provider);
@@ -187,7 +199,7 @@ class WP_MXNHelper extends WP_PluginBase {
 	
 	public function get_provider_header ($provider) {
 		if ($this->validate_provider ($provider)) {
-			if (self::$providers[$provider]['has-header']) {
+			if (self::$supported_providers[$provider]['has-header']) {
 				$method = $provider . '_header';
 				if (method_exists ($this, $method)) {
 					$header = call_user_func (array ($this, $method), $provider);
@@ -199,7 +211,7 @@ class WP_MXNHelper extends WP_PluginBase {
 	
 	public function get_provider_init ($provider) {
 		if ($this->validate_provider ($provider)) {
-			if (self::$providers[$provider]['has-init']) {
+			if (self::$supported_providers[$provider]['has-init']) {
 				$method = $provider . '_init';
 				if (method_exists ($this, $method)) {
 					$init = call_user_func (array ($this, $method), $provider);
@@ -209,19 +221,17 @@ class WP_MXNHelper extends WP_PluginBase {
 		}
 	}
 	
-	public function get_mxn_script ($provider) {
-		if ($this->validate_provider ($provider)) {
-			$stub = 'https://raw.github.com/vicchi/mxn/master/source/mxn.js?(%s)';
-			//$stub = 'https://raw.github.com/mapstraction/mxn/master/source/mxn.js?(%s)';
-			$script = sprintf ($stub, $provider);
-			$handle = 'mxn-core';
-			return array ('handle' => $handle, 'script' => $script);
-		}
+	public function get_core_script () {
+		$stub = 'https://raw.github.com/vicchi/mxn/master/source/mxn.js?(%s)';
+		//$stub = 'https://raw.github.com/mapstraction/mxn/master/source/mxn.js?(%s)';
+		$script = sprintf ($stub, implode (",", $this->providers));
+		$handle = 'mxn-core';
+		return array ('handle' => $handle, 'script' => $script);
 	}
 
 	private function validate_provider ($provider) {
 		if (isset ($provider) && !empty ($provider)) {
-			return array_key_exists ($provider, self::$providers);
+			return array_key_exists ($provider, self::$supported_providers);
 		}
 		
 		return false;
@@ -234,8 +244,8 @@ class WP_MXNHelper extends WP_PluginBase {
 	}
 	
 	private function cloudmade_init ($provider) {
-		if (self::$providers[$provider]['has-callback'] && isset (self::$providers[$provider]['callback'])) {
-			$meta = call_user_func (self::$providers[$provider]['callback']);
+		if (self::$supported_providers[$provider]['has-callback'] && isset (self::$supported_providers[$provider]['callback'])) {
+			$meta = call_user_func (self::$supported_providers[$provider]['callback']);
 			if (array_key_exists ('key', $meta)) {
 				$init = array ();
 				$init[] = '<script type="text/javascript">';
@@ -251,8 +261,8 @@ class WP_MXNHelper extends WP_PluginBase {
 	// Google Maps v3 helpers ...
 	
 	private function googlev3_script ($provider) {
-		if (self::$providers[$provider]['has-callback'] && isset (self::$providers[$provider]['callback'])) {
-			$meta = call_user_func (self::$providers[$provider]['callback']);
+		if (self::$supported_providers[$provider]['has-callback'] && isset (self::$supported_providers[$provider]['callback'])) {
+			$meta = call_user_func (self::$supported_providers[$provider]['callback']);
 			if (array_key_exists ('key', $meta) && array_key_exists ('sensor', $meta)) {
 				$stub = 'http://maps.googleapis.com/maps/api/js?key=%s&sensor=%s';
 				return sprintf ($stub, $meta['key'], $meta['sensor']);
@@ -263,11 +273,13 @@ class WP_MXNHelper extends WP_PluginBase {
 	// CloudMade Leaflet helpers ...
 	
 	private function leaflet_style ($provider) {
-		return 'https://raw.github.com/CloudMade/Leaflet/master/dist/leaflet.css';
+		//return 'https://raw.github.com/CloudMade/Leaflet/master/dist/leaflet.css';
+		return 'http://cdn.leafletjs.com/leaflet-0.4/leaflet.css';
 	}
 	
 	private function leaflet_script ($provider) {
-		return 'https://raw.github.com/CloudMade/Leaflet/master/dist/leaflet.js';
+		//return 'https://raw.github.com/CloudMade/Leaflet/master/dist/leaflet.js';
+		return 'http://cdn.leafletjs.com/leaflet-0.4/leaflet.js';
 	}
 	
 	// Nokia Maps helpers ...
@@ -281,8 +293,8 @@ class WP_MXNHelper extends WP_PluginBase {
 	}
 
 	private function nokia_init ($provider) {
-		if (self::$providers[$provider]['has-callback'] && isset (self::$providers[$provider]['callback'])) {
-			$meta = call_user_func (self::$providers[$provider]['callback']);
+		if (self::$supported_providers[$provider]['has-callback'] && isset (self::$supported_providers[$provider]['callback'])) {
+			$meta = call_user_func (self::$supported_providers[$provider]['callback']);
 			if (array_key_exists ('app-id', $meta) && array_key_exists ('auth-token', $meta)) {
 				$init = array ();
 				$init[] = '<script type="text/javascript">';
