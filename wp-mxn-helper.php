@@ -309,7 +309,8 @@ class WP_MXNHelper extends WP_PluginBase {
 
 	// OpenLayers helpers ...
 	private function openlayers_script ($provider) {
-		return 'https://raw.github.com/openlayers/openlayers/master/lib/OpenLayers.js';
+		//return 'https://raw.github.com/openlayers/openlayers/master/lib/OpenLayers.js';
+		return 'http://openlayers.org/api/OpenLayers.js';
 	}
 	
 	// OS OpenSpace helpers ...
