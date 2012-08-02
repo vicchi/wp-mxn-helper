@@ -3,7 +3,7 @@
 if (!class_exists ('WP_MXNHelper')) {
 	class WP_MXNHelper extends WP_PluginBase {
 
-		private static $supported_providers;
+		private $supported_providers;
 		private $providers = null;
 
 		function __construct () {
@@ -115,7 +115,7 @@ if (!class_exists ('WP_MXNHelper')) {
 			$this->hook ('wp_enqueue_scripts', 'enqueue_scripts');
 		}
 
-		static public function get_supported_providers () {
+		public function get_supported_providers () {
 			return apply_filters ('wp_mxn_helper_providers', self::$supported_providers);
 		}
 
