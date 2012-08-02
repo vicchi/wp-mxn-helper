@@ -51,6 +51,18 @@ class WP_MXNHelper extends WP_PluginBase {
 				'has-callback' => false,
 				'callback' => null
 				),
+			// 'microsoft7 callback should return:
+			// array ('key' => 'your bing maps v7 key')
+			// see http://www.bingmapsportal.com/
+			'microsoft7' => array (
+				'description' => 'Bing Maps v7.0',
+				'has-script' => true,
+				'has-header' => false,
+				'has-style' => false,
+				'has-init' => true,
+				'has-callback' => true,
+				'callback' => null
+				),
 			// 'nokia' callback should return:
 			// array ('app-id' => 'your nokia app id', 'auth-token' => 'your nokia auth token')
 			// see http://www.developer.nokia.com/Profile/Join.xhtml?locale=en
@@ -255,7 +267,6 @@ class WP_MXNHelper extends WP_PluginBase {
 				return implode (PHP_EOL, $init) . PHP_EOL;
 			}
 		}
-		
 	}
 	
 	// Google Maps v3 helpers ...
@@ -282,6 +293,26 @@ class WP_MXNHelper extends WP_PluginBase {
 		return 'http://cdn.leafletjs.com/leaflet-0.4/leaflet.js';
 	}
 	
+	// Microsoft / Bing v7 helpers ...
+	
+	private function microsoft7_script () {
+		return 'http://ecn.dev.virtualearth.net/mapcontrol/mapcontrol.ashx?v=7.0';
+	}
+
+	private function microsoft7_init () {
+		if (self::$supported_providers[$provider]['has-callback'] && isset (self::$supported_providers[$provider]['callback'])) {
+			$meta = call_user_func (self::$supported_providers[$provider]['callback']);
+			if (array_key_exists ('key', $meta)) {
+				$init = array ();
+				$init[] = '<script type="text/javascript">';
+				$init[] = sprintf ('microsoft_key = "%s";', $meta['key']);
+				$init[] = '</script>';
+
+				return implode (PHP_EOL, $init) . PHP_EOL;
+			}
+		}
+	}
+
 	// Nokia Maps helpers ...
 	
 	private function nokia_header ($provider) {
