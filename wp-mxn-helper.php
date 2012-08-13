@@ -5,9 +5,10 @@ if (!class_exists ('WP_MXNHelper')) {
 
 		private $supported_providers;
 		private $providers = null;
+		private $sanitise_callback = null;
 
 		function __construct () {
-			self::$supported_providers = array (
+			$this->supported_providers = array (
 
 			// Supported Provider Array components
 			// 'description' => human friendly description of who the provider is
@@ -116,7 +117,13 @@ if (!class_exists ('WP_MXNHelper')) {
 		}
 
 		public function get_supported_providers () {
-			return apply_filters ('wp_mxn_helper_providers', self::$supported_providers);
+			$providers = apply_filters ('wp_mxn_helper_providers', $this->supported_providers);
+
+			if (isset ($this->sanitise_callback)) {
+				$providers = call_user_func ($this->sanitise_callback, $providers);
+			}
+
+			return $providers;
 		}
 
 		public function set_providers ($providers) {
@@ -133,12 +140,18 @@ if (!class_exists ('WP_MXNHelper')) {
 
 		public function register_callback ($provider, $callback) {
 			if ($this->validate_provider ($provider)) {
-				if (self::$supported_providers[$provider]['has-callback']) {
-					self::$supported_providers[$provider]['callback'] = $callback;
+				if ($this->supported_providers[$provider]['has-callback']) {
+					$this->supported_providers[$provider]['callback'] = $callback;
 				}
 			}
 		}
 
+		public function register_sanitise_callback ($callback) {
+			if (isset ($callback)) {
+				$this->sanitise_callback = $callback;
+			}
+		}
+		
 		public function head_meta () {
 			foreach ($this->providers as $provider) {
 				if ($this->validate_provider ($provider)) {
@@ -186,7 +199,7 @@ if (!class_exists ('WP_MXNHelper')) {
 
 		public function get_provider_style ($provider) {
 			if ($this->validate_provider ($provider)) {
-				if (self::$supported_providers[$provider]['has-style']) {
+				if ($this->supported_providers[$provider]['has-style']) {
 					$method = $provider . '_style';
 					if (method_exists ($this, $method)) {
 						$style = call_user_func (array ($this, $method), $provider);
@@ -199,7 +212,7 @@ if (!class_exists ('WP_MXNHelper')) {
 
 		public function get_provider_script ($provider) {
 			if ($this->validate_provider ($provider)) {
-				if (self::$supported_providers[$provider]['has-script']) {
+				if ($this->supported_providers[$provider]['has-script']) {
 					$method = $provider . '_script';
 					if (method_exists ($this, $method)) {
 						$script = call_user_func (array ($this, $method), $provider);
@@ -212,7 +225,7 @@ if (!class_exists ('WP_MXNHelper')) {
 
 		public function get_provider_header ($provider) {
 			if ($this->validate_provider ($provider)) {
-				if (self::$supported_providers[$provider]['has-header']) {
+				if ($this->supported_providers[$provider]['has-header']) {
 					$method = $provider . '_header';
 					if (method_exists ($this, $method)) {
 						$header = call_user_func (array ($this, $method), $provider);
@@ -224,7 +237,7 @@ if (!class_exists ('WP_MXNHelper')) {
 
 		public function get_provider_init ($provider) {
 			if ($this->validate_provider ($provider)) {
-				if (self::$supported_providers[$provider]['has-init']) {
+				if ($this->supported_providers[$provider]['has-init']) {
 					$method = $provider . '_init';
 					if (method_exists ($this, $method)) {
 						$init = call_user_func (array ($this, $method), $provider);
@@ -244,7 +257,7 @@ if (!class_exists ('WP_MXNHelper')) {
 
 		private function validate_provider ($provider) {
 			if (isset ($provider) && !empty ($provider)) {
-				return array_key_exists ($provider, self::$supported_providers);
+				return array_key_exists ($provider, $this->supported_providers);
 			}
 
 			return false;
@@ -257,8 +270,8 @@ if (!class_exists ('WP_MXNHelper')) {
 		}
 
 		private function cloudmade_init ($provider) {
-			if (self::$supported_providers[$provider]['has-callback'] && isset (self::$supported_providers[$provider]['callback'])) {
-				$meta = call_user_func (self::$supported_providers[$provider]['callback']);
+			if ($this->supported_providers[$provider]['has-callback'] && isset ($this->supported_providers[$provider]['callback'])) {
+				$meta = call_user_func ($this->supported_providers[$provider]['callback']);
 				if (array_key_exists ('key', $meta)) {
 					$init = array ();
 					$init[] = '<script type="text/javascript">';
@@ -273,8 +286,8 @@ if (!class_exists ('WP_MXNHelper')) {
 		// Google Maps v3 helpers ...
 
 		private function googlev3_script ($provider) {
-			if (self::$supported_providers[$provider]['has-callback'] && isset (self::$supported_providers[$provider]['callback'])) {
-				$meta = call_user_func (self::$supported_providers[$provider]['callback']);
+			if ($this->supported_providers[$provider]['has-callback'] && isset ($this->supported_providers[$provider]['callback'])) {
+				$meta = call_user_func ($this->supported_providers[$provider]['callback']);
 				if (array_key_exists ('key', $meta) && array_key_exists ('sensor', $meta)) {
 					$stub = 'http://maps.googleapis.com/maps/api/js?key=%s&sensor=%s';
 					return sprintf ($stub, $meta['key'], $meta['sensor']);
@@ -301,8 +314,8 @@ if (!class_exists ('WP_MXNHelper')) {
 		}
 
 		private function microsoft7_init () {
-			if (self::$supported_providers[$provider]['has-callback'] && isset (self::$supported_providers[$provider]['callback'])) {
-				$meta = call_user_func (self::$supported_providers[$provider]['callback']);
+			if ($this->supported_providers[$provider]['has-callback'] && isset ($this->supported_providers[$provider]['callback'])) {
+				$meta = call_user_func ($this->supported_providers[$provider]['callback']);
 				if (array_key_exists ('key', $meta)) {
 					$init = array ();
 					$init[] = '<script type="text/javascript">';
@@ -325,8 +338,8 @@ if (!class_exists ('WP_MXNHelper')) {
 		}
 
 		private function nokia_init ($provider) {
-			if (self::$supported_providers[$provider]['has-callback'] && isset (self::$supported_providers[$provider]['callback'])) {
-				$meta = call_user_func (self::$supported_providers[$provider]['callback']);
+			if ($this->supported_providers[$provider]['has-callback'] && isset ($this->supported_providers[$provider]['callback'])) {
+				$meta = call_user_func ($this->supported_providers[$provider]['callback']);
 				if (array_key_exists ('app-id', $meta) && array_key_exists ('auth-token', $meta)) {
 					$init = array ();
 					$init[] = '<script type="text/javascript">';
