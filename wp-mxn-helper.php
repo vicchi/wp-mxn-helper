@@ -4,7 +4,8 @@ if (!class_exists ('WP_MXNHelper')) {
 	class WP_MXNHelper extends WP_PluginBase {
 
 		private $supported_providers;
-		private $providers = null;
+		private $admin_providers = null;
+		private $frontend_providers = null;
 		private $sanitise_callback = null;
 
 		function __construct () {
@@ -110,10 +111,18 @@ if (!class_exists ('WP_MXNHelper')) {
 			'callback' => null
 				)
 			);
+			
+			if (is_admin ()) {
+				$this->hook ('admin_head', 'admin_head_meta');
+				$this->hook ('admin_head', 'admin_head_init', 11);
+				$this->hook ('admin_enqueue_scripts', 'admin_enqueue_scripts');
+			}
 
-			$this->hook ('wp_head', 'head_meta');
-			$this->hook ('wp_head', 'head_init', 11);
-			$this->hook ('wp_enqueue_scripts', 'enqueue_scripts');
+			else {
+				$this->hook ('wp_head', 'frontend_head_meta');
+				$this->hook ('wp_head', 'frontend_head_init', 11);
+				$this->hook ('wp_enqueue_scripts', 'frontend_enqueue_scripts');
+			}
 		}
 
 		public function get_supported_providers () {
@@ -126,18 +135,30 @@ if (!class_exists ('WP_MXNHelper')) {
 			return $providers;
 		}
 
-		public function set_providers ($providers) {
+		public function set_admin_providers ($providers) {
 			if (!empty ($providers)) {
-				$this->providers = array ();
+				$this->admin_providers = array ();
 
 				foreach ($providers as $provider) {
 					if ($this->validate_provider ($provider)) {
-						$this->providers[] = $provider;
+						$this->admin_providers[] = $provider;
 					}
 				}
 			}
 		}
+		
+		public function set_frontend_providers ($providers) {
+			if (!empty ($providers)) {
+				$this->frontend_providers = array ();
 
+				foreach ($providers as $provider) {
+					if ($this->validate_provider ($provider)) {
+						$this->frontend_providers[] = $provider;
+					}
+				}
+			}
+		}
+		
 		public function register_callback ($provider, $callback) {
 			if ($this->validate_provider ($provider)) {
 				if ($this->supported_providers[$provider]['has-callback']) {
@@ -152,8 +173,12 @@ if (!class_exists ('WP_MXNHelper')) {
 			}
 		}
 		
-		public function head_meta () {
-			foreach ($this->providers as $provider) {
+		public function admin_head_meta () {
+			if (empty ($this->admin_providers)) {
+				return;
+			}
+
+			foreach ($this->admin_providers as $provider) {
 				if ($this->validate_provider ($provider)) {
 					$meta = $this->get_provider_header ($provider);
 					if (isset ($meta) && !empty ($meta)) {
@@ -163,8 +188,27 @@ if (!class_exists ('WP_MXNHelper')) {
 			}	// end-foreach
 		}
 
-		public function head_init () {
-			foreach ($this->providers as $provider) {
+		public function frontend_head_meta () {
+			if (empty ($this->frontend_providers)) {
+				return;
+			}
+
+			foreach ($this->frontend_providers as $provider) {
+				if ($this->validate_provider ($provider)) {
+					$meta = $this->get_provider_header ($provider);
+					if (isset ($meta) && !empty ($meta)) {
+						echo $meta . PHP_EOL;
+					}
+				}
+			}	// end-foreach
+		}
+
+		public function admin_head_init () {
+			if (empty ($this->admin_providers)) {
+				return;
+			}
+
+			foreach ($this->admin_providers as $provider) {
 				if ($this->validate_provider ($provider)) {
 					$init = $this->get_provider_init ($provider);
 					if (isset ($init) && !empty ($init)) {
@@ -174,10 +218,27 @@ if (!class_exists ('WP_MXNHelper')) {
 			}	// end-foreach
 		}
 
-		public function enqueue_scripts () {
-			$deps = array ();
+		public function frontend_head_init () {
+			if (empty ($this->frontend_providers)) {
+				return;
+			}
 
-			foreach ($this->providers as $provider) {
+			foreach ($this->frontend_providers as $provider) {
+				if ($this->validate_provider ($provider)) {
+					$init = $this->get_provider_init ($provider);
+					if (isset ($init) && !empty ($init)) {
+						echo $init;
+					}
+				}
+			}	// end-foreach
+		}
+
+		public function admin_enqueue_scripts () {
+			if (empty ($this->admin_providers)) {
+				return;
+			}
+			
+			foreach ($this->admin_providers as $provider) {
 				$api = $this->get_provider_script ($provider);
 				if (isset ($api) && !empty ($api)) {
 					$style = $this->get_provider_style ($provider);
@@ -192,7 +253,32 @@ if (!class_exists ('WP_MXNHelper')) {
 				}
 			}	// end-foreach
 
-			$core = $this->get_core_script ();
+			$core = $this->get_core_script ($this->admin_providers);
+			wp_register_script ($core['handle'], $core['script'], $deps);
+			wp_enqueue_script ($core['handle']);
+		}
+
+		public function frontend_enqueue_scripts () {
+			if (empty ($this->frontend_providers)) {
+				return;
+			}
+
+			foreach ($this->frontend_providers as $provider) {
+				$api = $this->get_provider_script ($provider);
+				if (isset ($api) && !empty ($api)) {
+					$style = $this->get_provider_style ($provider);
+					if (isset ($style) && !empty ($style)) {
+						wp_register_style ($style['handle'], $style['style']);
+						wp_enqueue_style ($style['handle']);
+					}
+
+					wp_register_script ($api['handle'], $api['script']);
+					wp_enqueue_script ($api['handle']);
+					$deps[] = $api['handle'];
+				}
+			}	// end-foreach
+
+			$core = $this->get_core_script ($this->frontend_providers);
 			wp_register_script ($core['handle'], $core['script'], $deps);
 			wp_enqueue_script ($core['handle']);
 		}
@@ -247,10 +333,10 @@ if (!class_exists ('WP_MXNHelper')) {
 			}
 		}
 
-		public function get_core_script () {
+		public function get_core_script ($providers) {
 			$stub = 'https://raw.github.com/vicchi/mxn/master/source/mxn.js?(%s)';
 			//$stub = 'https://raw.github.com/mapstraction/mxn/master/source/mxn.js?(%s)';
-			$script = sprintf ($stub, implode (",", $this->providers));
+			$script = sprintf ($stub, implode (",", $providers));
 			$handle = 'mxn-core';
 			return array ('handle' => $handle, 'script' => $script);
 		}
@@ -313,7 +399,7 @@ if (!class_exists ('WP_MXNHelper')) {
 			return 'http://ecn.dev.virtualearth.net/mapcontrol/mapcontrol.ashx?v=7.0';
 		}
 
-		private function microsoft7_init () {
+		private function microsoft7_init ($provider) {
 			if ($this->supported_providers[$provider]['has-callback'] && isset ($this->supported_providers[$provider]['callback'])) {
 				$meta = call_user_func ($this->supported_providers[$provider]['callback']);
 				if (array_key_exists ('key', $meta)) {
