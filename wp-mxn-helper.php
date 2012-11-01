@@ -1,7 +1,7 @@
 <?php
 
-if (!class_exists ('WP_MXNHelper')) {
-	class WP_MXNHelper extends WP_PluginBase {
+if (!class_exists ('WP_MXNHelper_v2_0')) {
+	class WP_MXNHelper_v2_0 extends WP_PluginBase_v1_1 {
 
 		private $supported_providers;
 		private $admin_providers = null;
@@ -450,6 +450,6 @@ if (!class_exists ('WP_MXNHelper')) {
 
 		}
 
-	}	// end-class WP_MXNHelper
-}	// end-if (!class_exists ('WP_MXNHelper'))
+	}	// end-class WP_MXNHelper_v2_0
+}	// end-if (!class_exists ('WP_MXNHelper_v2_0'))
 ?>
